@@ -10,6 +10,10 @@ struct Tensor4D {
     Tensor4D(unsigned int const shape_[4], T const *data_) {
         unsigned int size = 1;
         // TODO: 填入正确的 shape 并计算 size
+        for (int i = 0; i < 4; ++i) {
+            shape[i] = shape_[i];
+            size *= shape_[i];
+        }
         data = new T[size];
         std::memcpy(data, data_, size * sizeof(T));
     }
@@ -28,6 +32,57 @@ struct Tensor4D {
     // 则 `this` 与 `others` 相加时，3 个形状为 `[1, 2, 1, 4]` 的子张量各自与 `others` 对应项相加。
     Tensor4D &operator+=(Tensor4D const &others) {
         // TODO: 实现单向广播的加法
+        for(int d = 0; d < 4; ++d){
+            if(others.shape[d] !=1 && others.shape[d] != this->shape[d]){
+                throw std::invalid_argument("Incompatible shapes for broadcasting");
+            }
+        }
+
+        // 计算 this 的步长
+        unsigned int stride_this[4];
+        stride_this[3] =1;
+        for(int d=2; d >=0; --d){
+            stride_this[d] = stride_this[d+1] * this->shape[d+1];
+        }
+
+        // 计算 others 的正常步长
+        unsigned int stride_other_normal[4];
+        stride_other_normal[3] =1;
+        for(int d=2; d >=0; --d){
+            stride_other_normal[d] = stride_other_normal[d+1] * others.shape[d+1];
+        }
+
+        // 根据广播规则调整 others 的步长
+        unsigned int stride_other[4];
+        for(int d=0; d <4; ++d){
+            stride_other[d] = (others.shape[d] ==1) ?0 : stride_other_normal[d];
+        }
+
+        // 计算总元素数量
+        unsigned int total_size =1;
+        for(int d=0; d <4; ++d){
+            total_size *= this->shape[d];
+        }
+
+        // 遍历所有元素，执行加法
+        for(unsigned int idx=0; idx < total_size; ++idx){
+            // 计算多维索引
+            unsigned int tmp = idx;
+            unsigned int indices[4];
+            for(int d=0; d <4; ++d){
+                indices[d] = tmp / stride_this[d];
+                tmp %= stride_this[d];
+            }
+
+            // 计算 others 的一维索引
+            unsigned int idx_other =0;
+            for(int d=0; d <4; ++d){
+                idx_other += indices[d] * stride_other[d];
+            }
+
+            // 执行加法
+            this->data[idx] += others.data[idx_other];
+        }
         return *this;
     }
 };
